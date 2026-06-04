@@ -158,5 +158,14 @@ jobs:
           docker stop ecs-vm-demo 2>/dev/null || true
           docker rm ecs-vm-demo 2>/dev/null || true
           docker run -d --name ecs-vm-demo -p 3000:3000 --restart unless-stopped "$IMAGE_URI"
-          curl --fail http://localhost:3000/health
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep 3
+            curl --fail --silent http://localhost:3000/health && break
+            echo "Health check attempt $i/10 failed, retrying..."
+            if [ "$i" = "10" ]; then
+              echo "Container failed to become healthy"
+              docker logs ecs-vm-demo
+              exit 1
+            fi
+          done
           docker image prune -f
