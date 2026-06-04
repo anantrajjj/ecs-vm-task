@@ -110,7 +110,8 @@ jobs:
           aws ecs describe-task-definition \
             --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
             --query taskDefinition \
-            --output json > task-definition.json
+            --output json \
+          | jq 'del(.enableFaultInjection)' > task-definition.json
 
       - name: Update task definition with new image
         id: render-task-def
