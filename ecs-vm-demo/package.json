@@ -1,0 +1,23 @@
+{
+  "name": "ecs-vm-demo",
+  "version": "1.0.0",
+  "description": "Dockerized Express API demo for AWS ECS and Office VM deployment.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "validate": "node -e \"require('./index')\"",
+    "test": "npm run validate"
+  },
+  "keywords": [
+    "express",
+    "docker",
+    "ecs",
+    "github-actions"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
