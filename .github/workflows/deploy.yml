@@ -131,7 +131,7 @@ jobs:
 
   deploy-vm:
     name: Deploy to Office VM
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: push-ecr
     permissions:
       id-token: write
@@ -150,31 +150,13 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Configure SSH access
-        shell: bash
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s' "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          printf '%s\n' "${{ secrets.VM_SSH_KNOWN_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Deploy container on Office VM
-        shell: bash
+      - name: Deploy container
         env:
-          VM_HOST: ${{ secrets.VM_HOST }}
-          VM_USERNAME: ${{ secrets.VM_USERNAME }}
           IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          ECR_PASSWORD=$(aws ecr get-login-password --region "${AWS_REGION}")
-
-          printf '%s' "$ECR_PASSWORD" | ssh -i ~/.ssh/id_rsa "${VM_USERNAME}@${VM_HOST}" "
-            set -e
-            docker login --username AWS --password-stdin ${ECR_REGISTRY}
-            docker pull ${IMAGE_URI}
-            docker stop ecs-vm-demo 2>/dev/null || true
-            docker rm ecs-vm-demo 2>/dev/null || true
-            docker run -d --name ecs-vm-demo -p 3000:3000 --restart unless-stopped ${IMAGE_URI}
-            curl --fail http://localhost:3000/health
-            docker image prune -f
-          "
+          docker pull "$IMAGE_URI"
+          docker stop ecs-vm-demo 2>/dev/null || true
+          docker rm ecs-vm-demo 2>/dev/null || true
+          docker run -d --name ecs-vm-demo -p 3000:3000 --restart unless-stopped "$IMAGE_URI"
+          curl --fail http://localhost:3000/health
+          docker image prune -f
