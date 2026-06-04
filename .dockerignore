@@ -5,3 +5,4 @@ Dockerfile
 .github
 .env
 logs
+ecs-vm-demo

@@ -1,0 +1,4 @@
+node_modules
+.env
+logs
+ecs-vm-demo/node_modules

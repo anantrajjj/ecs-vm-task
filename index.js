@@ -10,7 +10,6 @@ const VERSION = require('./package.json').version || '0.0.0';
 app.disable('x-powered-by');
 app.use(express.json());
 
-// Simple request logger (no external deps)
 app.use((req, res, next) => {
     const start = Date.now();
     const id = Math.random().toString(36).slice(2, 9);
@@ -34,6 +33,7 @@ app.use((req, res, next) => {
 });
 
 let isReady = true;
+let server;
 
 app.get('/', (req, res) => {
     res.json({
@@ -46,18 +46,15 @@ app.get('/', (req, res) => {
     });
 });
 
-// Liveness probe - should indicate whether process is alive
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'healthy' });
 });
 
-// Readiness probe - used by load-balancers and orchestrators
 app.get('/ready', (req, res) => {
     if (isReady) return res.status(200).json({ ready: true });
     return res.status(503).json({ ready: false });
 });
 
-// Lightweight metrics useful for demoing
 app.get('/metrics', (req, res) => {
     const mem = process.memoryUsage();
     res.json({
@@ -72,19 +69,17 @@ app.get('/metrics', (req, res) => {
     });
 });
 
-// Graceful shutdown helpers
 function shutdown(signal) {
     if (!isReady) return;
     console.log(`Received ${signal}, starting graceful shutdown...`);
     isReady = false;
 
-    // give external systems time to stop sending traffic
     setTimeout(() => {
         server.close(() => {
             console.log('Closed HTTP server');
             process.exit(0);
         });
-        // force exit after 10s
+
         setTimeout(() => {
             console.error('Forcing shutdown');
             process.exit(1);
@@ -104,8 +99,6 @@ process.on('unhandledRejection', (reason) => {
     console.error('unhandledRejection', reason);
     shutdown('unhandledRejection');
 });
-
-let server;
 
 function startServer() {
     if (server) return server;
