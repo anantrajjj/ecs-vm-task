@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build and Validate
+    name: Build and Scan
     runs-on: ubuntu-latest
 
     steps:
@@ -25,16 +25,71 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run basic validation
+      - name: Run validation
         run: npm test
 
       - name: Build Docker image
-        run: docker build -t ecs-vm-demo:latest .
+        run: docker build -t ecs-vm-demo:${{ github.sha }} .
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ecs-vm-demo:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL
+
+      - name: Save Docker image
+        run: docker save ecs-vm-demo:${{ github.sha }} | gzip > image.tar.gz
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: image.tar.gz
+          retention-days: 1
+
+  push-ecr:
+    name: Push to ECR
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+
+      - name: Load and push image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker load < image.tar.gz
+          docker tag ecs-vm-demo:${IMAGE_TAG} "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
   deploy-ecs:
     name: Deploy to AWS ECS
     runs-on: ubuntu-latest
-    needs: build
+    needs: push-ecr
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -43,66 +98,43 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Log in to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and tag Docker image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Fetch current ECS task definition
         run: |
-          docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
-          docker tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
-
-      - name: Push image to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
-
-      - name: Update ECS task definition and deploy service
-        run: |
-          TASK_DEFINITION_JSON=$(aws ecs describe-task-definition \
+          aws ecs describe-task-definition \
             --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
             --query taskDefinition \
-            --output json)
+            --output json > task-definition.json
 
-          echo "$TASK_DEFINITION_JSON" | jq --arg IMAGE "${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}" --arg CONTAINER_NAME "${{ secrets.ECS_CONTAINER_NAME }}" '
-            del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
-            | .containerDefinitions = [
-                .containerDefinitions[]
-                | if .name == $CONTAINER_NAME then .image = $IMAGE else . end
-              ]
-          ' > task-definition-updated.json
+      - name: Update task definition with new image
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ secrets.ECS_CONTAINER_NAME }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
 
-          TASK_DEFINITION_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://task-definition-updated.json \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-
-          aws ecs update-service \
-            --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --service "${{ secrets.ECS_SERVICE }}" \
-            --task-definition "$TASK_DEFINITION_ARN" \
-            --force-new-deployment
-
-          aws ecs wait services-stable \
-            --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --services "${{ secrets.ECS_SERVICE }}"
+      - name: Deploy to ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          service: ${{ secrets.ECS_SERVICE }}
+          cluster: ${{ secrets.ECS_CLUSTER }}
+          wait-for-service-stability: true
 
   deploy-vm:
     name: Deploy to Office VM
     runs-on: ubuntu-latest
-    needs: build
+    needs: push-ecr
+    permissions:
+      id-token: write
+      contents: read
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
 
@@ -110,8 +142,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Log in to Amazon ECR
@@ -122,9 +153,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/id_rsa
+          printf '%s' "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "${{ secrets.VM_HOST }}" >> ~/.ssh/known_hosts
+          printf '%s\n' "${{ secrets.VM_SSH_KNOWN_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy container on Office VM
         shell: bash
@@ -144,4 +175,5 @@ jobs:
             docker rm ecs-vm-demo 2>/dev/null || true
             docker run -d --name ecs-vm-demo -p 3000:3000 --restart unless-stopped ${IMAGE_URI}
             curl --fail http://localhost:3000/health
+            docker image prune -f
           "

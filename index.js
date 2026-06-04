@@ -56,6 +56,13 @@ app.get('/ready', (req, res) => {
 });
 
 app.get('/metrics', (req, res) => {
+    const token = process.env.METRICS_TOKEN;
+    if (token) {
+        const auth = req.headers.authorization;
+        if (!auth || auth !== `Bearer ${token}`) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+    }
     const mem = process.memoryUsage();
     res.json({
         uptime_seconds: Math.round(process.uptime()),

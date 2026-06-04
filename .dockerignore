@@ -1,8 +1,10 @@
 node_modules
 npm-debug.log
 Dockerfile
+.dockerignore
 .git
 .github
 .env
 logs
 ecs-vm-demo
+*.md
