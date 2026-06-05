@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "validate": "node -e \"require('./index')\"",
+    "validate": "node -e \"const {app,startServer}=require('./index'); const assert=require('assert'); assert(typeof app==='function','app missing'); assert(typeof startServer==='function','startServer missing'); console.log('validate OK');\"",
     "test": "npm run validate"
   },
   "keywords": [

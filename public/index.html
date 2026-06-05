@@ -56,15 +56,21 @@
 
     #lives-display { letter-spacing: 0.15em; }
 
-    /* Canvas wrapper */
+    /* Canvas wrapper — responsive: scales down on narrow screens */
     #canvas-wrap {
       position: relative;
-      width: 480px;
+      width: min(480px, 100vw);
       line-height: 0;
+    }
+
+    #hud {
+      width: min(480px, 100vw);
     }
 
     canvas {
       display: block;
+      width: 100%;
+      height: auto;
       background: var(--bg);
     }
 
@@ -146,11 +152,17 @@
     #level-complete.show {
       opacity: 1;
     }
+    #level-complete { flex-direction: column; gap: 12px; pointer-events: auto; }
     #level-complete h2 {
       font-size: 36px;
       font-weight: 700;
       letter-spacing: 0.12em;
       color: var(--text);
+    }
+    #lc-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
     }
   </style>
 </head>
@@ -168,6 +180,7 @@
     <!-- Start screen -->
     <div class="overlay" id="screen-start">
       <h1>BRICK BREAKER</h1>
+      <p class="score-line">BEST &nbsp;<strong id="start-best">0</strong></p>
       <p>MOUSE / TOUCH  to move paddle<br>SPACE  to launch · pause<br>← →  to move</p>
       <button class="btn" id="btn-start">START GAME</button>
     </div>
@@ -186,8 +199,11 @@
       <button class="btn" id="btn-restart">PLAY AGAIN</button>
     </div>
 
-    <!-- Level complete flash -->
-    <div id="level-complete"><h2 id="lc-text">LEVEL 1</h2></div>
+    <!-- Level complete — requires Space / click to advance -->
+    <div id="level-complete">
+      <h2 id="lc-text">LEVEL 2</h2>
+      <p id="lc-hint">SPACE OR CLICK TO CONTINUE</p>
+    </div>
   </div>
 </div>
 
