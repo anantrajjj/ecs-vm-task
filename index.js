@@ -1,5 +1,6 @@
 const express = require('express');
 const os = require('os');
+const path = require('path');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -9,6 +10,7 @@ const VERSION = require('./package.json').version || '0.0.0';
 
 app.disable('x-powered-by');
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.use((req, res, next) => {
     const start = Date.now();
@@ -35,15 +37,8 @@ app.use((req, res, next) => {
 let isReady = true;
 let server;
 
-app.get('/', (req, res) => {
-    res.json({
-        message: 'Deployment successful',
-        environment: 'AWS ECS and Office VM',
-        status: 'running',
-        app: APP_NAME,
-        version: VERSION,
-        node_env: NODE_ENV
-    });
+app.get('/version', (req, res) => {
+    res.json({ version: VERSION, name: APP_NAME, node_env: NODE_ENV });
 });
 
 app.get('/health', (req, res) => {

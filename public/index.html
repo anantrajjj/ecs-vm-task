@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brick Breaker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #f5f0e8;
+      --surface:     #e8e2d6;
+      --accent:      #c0392b;
+      --paddle:      #1a1a2e;
+      --text:        #1a1a2e;
+      --text-muted:  #6b7280;
+      --power-up:    #c87000;
+      --brick-a:     #2c5f8a;
+      --brick-b:     #6b3d9a;
+      --brick-strong:#1a6b3d;
+      --brick-inert: #8a8a9a;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    #root {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%; height: 100%;
+    }
+
+    /* HUD */
+    #hud {
+      width: 480px;
+      background: var(--surface);
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      letter-spacing: 0.05em;
+    }
+
+    #hud span { color: var(--text-muted); margin-right: 4px; }
+
+    #lives-display { letter-spacing: 0.15em; }
+
+    /* Canvas wrapper */
+    #canvas-wrap {
+      position: relative;
+      width: 480px;
+      line-height: 0;
+    }
+
+    canvas {
+      display: block;
+      background: var(--bg);
+    }
+
+    /* Overlay screens */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(245, 240, 232, 0.92);
+      gap: 20px;
+      opacity: 1;
+      transition: opacity 0.18s ease;
+    }
+
+    .overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .overlay h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text);
+    }
+
+    .overlay h2 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+    }
+
+    .overlay p {
+      font-size: 13px;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    .overlay .score-line {
+      font-size: 15px;
+      color: var(--text);
+    }
+
+    /* Buttons */
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 2px;
+      padding: 10px 32px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .btn:hover { background: #c73550; }
+    .btn:active { background: #a82a44; }
+
+    /* Level complete */
+    #level-complete {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(245, 240, 232, 0.88);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    #level-complete.show {
+      opacity: 1;
+    }
+    #level-complete h2 {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+<div id="root">
+  <div id="hud">
+    <div><span>SCORE</span><strong id="score-val">0</strong></div>
+    <div><span>LEVEL</span><strong id="level-val">1</strong></div>
+    <div><span>LIVES</span><strong id="lives-display">●●●</strong></div>
+    <div><span>BEST</span><strong id="best-val">0</strong></div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="game" width="480" height="580"></canvas>
+
+    <!-- Start screen -->
+    <div class="overlay" id="screen-start">
+      <h1>BRICK BREAKER</h1>
+      <p>MOUSE / TOUCH  to move paddle<br>SPACE  to launch · pause<br>← →  to move</p>
+      <button class="btn" id="btn-start">START GAME</button>
+    </div>
+
+    <!-- Pause screen -->
+    <div class="overlay hidden" id="screen-pause">
+      <h2>PAUSED</h2>
+      <button class="btn" id="btn-resume">RESUME</button>
+    </div>
+
+    <!-- Game over screen -->
+    <div class="overlay hidden" id="screen-gameover">
+      <h2>GAME OVER</h2>
+      <p class="score-line">SCORE  <strong id="go-score">0</strong></p>
+      <p class="score-line">BEST   <strong id="go-best">0</strong></p>
+      <button class="btn" id="btn-restart">PLAY AGAIN</button>
+    </div>
+
+    <!-- Level complete flash -->
+    <div id="level-complete"><h2 id="lc-text">LEVEL 1</h2></div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
