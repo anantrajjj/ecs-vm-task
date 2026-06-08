@@ -1,0 +1,88 @@
+name: Setup Office VM
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  setup:
+    name: Install dependencies and verify VM readiness
+    runs-on: self-hosted
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+
+    steps:
+      - name: Install Docker
+        run: |
+          if command -v docker &>/dev/null; then
+            echo "Docker already installed: $(docker --version)"
+          else
+            echo "Installing Docker..."
+            curl -fsSL https://get.docker.com | sh
+            sudo systemctl enable --now docker
+            sudo usermod -aG docker "$(whoami)"
+            echo "Docker installed — you may need to re-register the runner for group changes to take effect"
+          fi
+
+      - name: Install AWS CLI v2
+        run: |
+          if command -v aws &>/dev/null; then
+            echo "AWS CLI already installed: $(aws --version)"
+          else
+            echo "Installing AWS CLI v2..."
+            curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscli.zip
+            unzip -q /tmp/awscli.zip -d /tmp/
+            sudo /tmp/aws/install
+            rm -rf /tmp/awscli.zip /tmp/aws/
+            echo "Installed: $(aws --version)"
+          fi
+
+      - name: Install jq and curl
+        run: |
+          MISSING=""
+          command -v jq   &>/dev/null || MISSING="$MISSING jq"
+          command -v curl &>/dev/null || MISSING="$MISSING curl"
+          if [ -n "$MISSING" ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq $MISSING
+          else
+            echo "jq and curl already present"
+          fi
+
+      - name: Create Docker network
+        run: |
+          docker network create cc-task-net 2>/dev/null \
+            && echo "Created network cc-task-net" \
+            || echo "Network cc-task-net already exists"
+
+      - name: Pull base images
+        run: docker pull nginx:alpine
+
+      - name: Verify AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Verify ECR access
+        run: |
+          aws ecr describe-repositories \
+            --repository-names "${{ secrets.ECR_REPOSITORY }}" \
+            --region "${{ secrets.AWS_REGION }}" \
+            --query 'repositories[0].repositoryUri' \
+            --output text
+
+      - name: Prune stale Docker resources
+        run: |
+          docker container prune -f
+          docker image prune -f
+
+      - name: Summary
+        run: |
+          echo "=== Docker ==="; docker version --format 'Client {{.Client.Version}} / Server {{.Server.Version}}'
+          echo "=== AWS CLI ==="; aws --version
+          echo "=== Networks ==="; docker network ls --filter name=cc-task-net
+          echo "=== Disk ==="; df -h /
+          echo "=== VM ready ==="
