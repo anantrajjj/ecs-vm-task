@@ -1,12 +1,14 @@
 'use strict';
 
 const CACHE = 'brick-v2';
-const PRECACHE = ['/', '/game.js?v=2'];
 
 self.addEventListener('install', e => {
+  // Build precache URLs relative to the SW scope so this works on any origin
+  // (office VM at /  OR  GitHub Pages at /ecs-vm-task/)
+  const base = self.registration.scope;
   e.waitUntil(
     caches.open(CACHE)
-      .then(c => c.addAll(PRECACHE))
+      .then(c => c.addAll([base, base + 'game.js?v=2']))
       .then(() => self.skipWaiting())
   );
 });
@@ -19,12 +21,10 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Network-first, cache fallback — page loads from network when reachable,
-// from cache when the network/port is unreachable (e.g. cellular carrier blocking port 8089)
+// Network-first, cache fallback — serves from cache when the port is unreachable
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const { pathname } = new URL(e.request.url);
-  // Let API/health endpoints bypass the cache entirely
   if (pathname === '/health' || pathname === '/version' || pathname === '/metrics' || pathname === '/ready') return;
 
   e.respondWith(
