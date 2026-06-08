@@ -1,10 +1,9 @@
 'use strict';
 
 const CACHE = 'brick-v2';
+const NETWORK_TIMEOUT_MS = 3000;
 
 self.addEventListener('install', e => {
-  // Build precache URLs relative to the SW scope so this works on any origin
-  // (office VM at /  OR  GitHub Pages at /ecs-vm-task/)
   const base = self.registration.scope;
   e.waitUntil(
     caches.open(CACHE)
@@ -21,18 +20,28 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Network-first, cache fallback — serves from cache when the port is unreachable
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const { pathname } = new URL(e.request.url);
   if (pathname === '/health' || pathname === '/version' || pathname === '/metrics' || pathname === '/ready') return;
 
+  // Race network against a 3s timeout — if the port is blocked/unreachable on
+  // mobile, fall back to cache immediately instead of waiting 30-75s for TCP timeout
   e.respondWith(
-    fetch(e.request)
-      .then(r => {
-        if (r.ok) caches.open(CACHE).then(c => c.put(e.request, r.clone()));
-        return r;
-      })
-      .catch(() => caches.match(e.request))
+    caches.open(CACHE).then(async cache => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
+
+      try {
+        const response = await fetch(e.request, { signal: controller.signal });
+        clearTimeout(timer);
+        if (response.ok) cache.put(e.request, response.clone());
+        return response;
+      } catch {
+        clearTimeout(timer);
+        const cached = await cache.match(e.request);
+        return cached || Response.error();
+      }
+    })
   );
 });
