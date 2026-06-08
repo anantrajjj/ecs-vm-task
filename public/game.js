@@ -1006,6 +1006,14 @@ document.getElementById('btn-start').addEventListener('click', startGame);
 document.getElementById('btn-resume').addEventListener('click', resume);
 document.getElementById('btn-restart').addEventListener('click', startGame);
 
+// Level-complete overlay — listeners must be here, not on canvas, because
+// #level-complete sits on top of canvas as a sibling; clicks bubble up, never sideways to canvas
+document.getElementById('level-complete').addEventListener('click', advanceLevel);
+document.getElementById('level-complete').addEventListener('touchstart', e => {
+  e.preventDefault();
+  advanceLevel();
+}, { passive: false });
+
 // ─────────────────────────────────────────────────────────────────────────────
 // BOOT
 // ─────────────────────────────────────────────────────────────────────────────
