@@ -55,11 +55,11 @@ app.use((req, res, next) => {
     next();
 });
 
-// ── Static files — 1 h cache for assets, no-cache for HTML ───────────────────
+// ── Static files — no-cache for HTML/JS; 1 h for other assets ────────────────
 app.use(express.static(PUBLIC_DIR, {
     maxAge: '1h',
     setHeaders(res, filePath) {
-        if (filePath.endsWith('.html')) {
+        if (filePath.endsWith('.html') || filePath.endsWith('.js')) {
             res.setHeader('Cache-Control', 'no-cache');
         }
     },

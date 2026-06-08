@@ -725,7 +725,7 @@ function drawParticles() {
 
 function drawPowerups() {
   ctx.save();
-  ctx.font = 'bold 9px "IBM Plex Mono", monospace';
+  ctx.font = 'bold 9px ui-monospace, monospace';
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   for (const pu of state.powerups) {
@@ -804,7 +804,7 @@ function drawPaddle() {
   const active = activeEffects.map(([k]) => k[0].toUpperCase()).join('');
   if (active) {
     ctx.fillStyle    = warnPulse ? '#f5f0e8' : '#f5f0e8';
-    ctx.font         = '8px "IBM Plex Mono", monospace';
+    ctx.font         = '8px ui-monospace, monospace';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(active, p.x, p.y);
@@ -816,7 +816,7 @@ function drawCombo() {
   const alpha = Math.min(1, state.comboDisplay.timer / 0.4);
   ctx.globalAlpha  = alpha;
   ctx.fillStyle    = C.COLORS.comboText;
-  ctx.font         = 'bold 14px "IBM Plex Mono", monospace';
+  ctx.font         = 'bold 14px ui-monospace, monospace';
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(`×${state.comboDisplay.count}`, C.W / 2, C.H / 2);
