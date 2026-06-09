@@ -1020,7 +1020,3 @@ document.getElementById('level-complete').addEventListener('touchstart', e => {
 updateHUD();
 render();
 startLoop();
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
-}
