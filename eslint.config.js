@@ -2,12 +2,14 @@
 
 const js = require('@eslint/js');
 const globals = require('globals');
+const prettierConfig = require('eslint-config-prettier');
 
 module.exports = [
   js.configs.recommended,
-  // Server — Node.js CommonJS
+  prettierConfig,
+  // Server + config files — Node.js CommonJS
   {
-    files: ['index.js'],
+    files: ['index.js', 'eslint.config.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',

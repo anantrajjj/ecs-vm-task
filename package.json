@@ -6,8 +6,17 @@
   "scripts": {
     "start": "node index.js",
     "validate": "node -e \"const {app,startServer}=require('./index'); const assert=require('assert'); assert(typeof app==='function','app missing'); assert(typeof startServer==='function','startServer missing'); console.log('validate OK');\"",
-    "lint": "eslint index.js public/game.js public/sw.js",
-    "test": "npm run validate"
+    "lint": "eslint index.js eslint.config.js public/game.js public/sw.js",
+    "format": "prettier --write index.js eslint.config.js public/game.js public/sw.js",
+    "format:check": "prettier --check index.js eslint.config.js public/game.js public/sw.js",
+    "test": "npm run validate",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "{index,eslint.config,public/game,public/sw}.js": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   },
   "keywords": [
     "express",
@@ -24,6 +33,10 @@
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "eslint": "^9.39.4",
-    "globals": "^17.6.0"
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
+    "prettier": "^3.8.3"
   }
 }
