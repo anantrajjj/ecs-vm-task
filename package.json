@@ -10,7 +10,7 @@
     "format": "prettier --write index.js eslint.config.js public/game.js public/sw.js",
     "format:check": "prettier --check index.js eslint.config.js public/game.js public/sw.js",
     "test": "npm run validate",
-    "prepare": "husky"
+    "prepare": "node -e \"require('fs').existsSync('.git')&&require('child_process').execSync('husky',{stdio:'inherit'})\""
   },
   "lint-staged": {
     "{index,eslint.config,public/game,public/sw}.js": [
