@@ -208,3 +208,18 @@ jobs:
           }
 
           docker image prune -f
+
+      - name: Deploy Cloudflare Tunnel
+        env:
+          CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
+        run: |
+          docker stop cc-task-tunnel 2>/dev/null || true
+          docker rm   cc-task-tunnel 2>/dev/null || true
+          docker run -d \
+            --name cc-task-tunnel \
+            --network cc-task-net \
+            --restart unless-stopped \
+            cloudflare/cloudflared:latest \
+            tunnel --no-autoupdate run \
+            --token "$CF_TUNNEL_TOKEN"
+          echo "Cloudflare tunnel started — mobile URL available in Cloudflare dashboard"
