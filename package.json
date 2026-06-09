@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "validate": "node -e \"const {app,startServer}=require('./index'); const assert=require('assert'); assert(typeof app==='function','app missing'); assert(typeof startServer==='function','startServer missing'); console.log('validate OK');\"",
+    "lint": "eslint index.js public/game.js public/sw.js",
     "test": "npm run validate"
   },
   "keywords": [
@@ -19,5 +20,10 @@
   "type": "commonjs",
   "dependencies": {
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^9.39.4",
+    "globals": "^17.6.0"
   }
 }

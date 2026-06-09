@@ -74,7 +74,7 @@ function beep(freq, dur, vol = 0.12, type = 'square') {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + dur + 0.01);
-  } catch (_) {}
+  } catch { /* audio not supported */ }
 }
 
 const SFX = {

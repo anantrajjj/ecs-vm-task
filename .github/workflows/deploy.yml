@@ -28,6 +28,9 @@ jobs:
       - name: Run validation
         run: npm test
 
+      - name: Lint
+        run: npm run lint
+
       - name: Build Docker image
         run: docker build -t ecs-vm-demo:${{ github.sha }} .
 
