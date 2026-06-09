@@ -189,6 +189,14 @@ jobs:
 
       - name: Deploy nginx reverse proxy
         run: |
+          # Self-signed cert so mobile Chrome's HTTPS-first attempt succeeds
+          # (browser warns once; after accepting it remembers the cert)
+          mkdir -p /tmp/nginx-ssl
+          openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+            -keyout /tmp/nginx-ssl/key.pem \
+            -out    /tmp/nginx-ssl/cert.pem \
+            -subj   "/CN=110.227.211.247" 2>/dev/null
+
           docker stop cc-task-nginx 2>/dev/null || true
           docker rm   cc-task-nginx 2>/dev/null || true
           docker run -d \
@@ -196,6 +204,7 @@ jobs:
             --network cc-task-net \
             -p 80:80 \
             -v "$PWD/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
+            -v "/tmp/nginx-ssl:/etc/nginx/ssl:ro" \
             --restart unless-stopped \
             nginx:alpine
 
