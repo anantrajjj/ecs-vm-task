@@ -1,100 +1,114 @@
-# Brick Breaker
+# ecs-vm-demo
 
-A production-quality Brick Breaker / Breakout game served by an Express backend, deployed to AWS ECS and an office VM via GitHub Actions.
+An Express application deployed to AWS ECS and an on-premises office VM via a single GitHub Actions pipeline. Uses Docker for packaging and nginx as a reverse proxy, with protocol-aware routing to handle both HTTP and HTTPS clients on the same port.
 
-## Local Development
+## Stack
 
-```bash
-npm install
-npm start          # http://localhost:3000
-npm test           # validates server loads correctly
-```
-
-## Controls
-
-| Input | Action |
-|---|---|
-| Mouse move | Move paddle |
-| Touch drag | Move paddle |
-| ← → arrow keys | Move paddle |
-| Space | Launch ball / pause / resume / advance level |
-| Click / Tap | Launch ball / advance level |
-
-## Game Features
-
-- 8 levels with escalating difficulty
-- 4 power-ups: Wide Paddle, Multi-Ball, Slow Ball, Laser
-- Multi-hit and indestructible bricks
-- Combo multiplier (rapid successive hits)
-- Ball speed carries across levels
-- High score persisted via localStorage
-- Web Audio API sound effects
-- Effect timer bars on paddle with expiry warning
-
-## API Endpoints
-
-| Route | Response |
-|---|---|
-| `GET /health` | `{"status":"healthy"}` |
-| `GET /version` | `{"version":"…","name":"…","node_env":"…"}` |
-| `GET /metrics` | Uptime, request count, memory, load avg |
-| `GET /ready` | Readiness probe |
-
-`/metrics` is protected by `METRICS_TOKEN` env var when set (`Authorization: Bearer <token>`).
+- **Runtime** — Node.js 20, Express 5
+- **Container** — Docker (Alpine base), served behind nginx
+- **CI/CD** — GitHub Actions with OIDC-based AWS auth (no long-lived keys)
+- **Cloud** — AWS ECS (Fargate), ECR, ALB
+- **On-prem** — Self-hosted GitHub Actions runner on office VM, nginx reverse proxy
 
 ## Architecture
 
 ```
+Client
+  └── nginx (reverse proxy)
+        ├── HTTP  → Express :3000
+        └── HTTPS → Express :3000   (TLS terminated at nginx)
+
 Express (index.js)
-├── express.static → public/          # game HTML + JS
-├── GET /health, /version, /metrics   # API
-└── fallback → public/index.html      # SPA-style catch-all
-
-public/
-├── index.html    # shell: HUD, overlays, canvas
-└── game.js       # full game: entities, physics, renderer, input, audio
+  ├── GET /health, /ready           # liveness + readiness probes
+  ├── GET /version                  # build metadata
+  ├── GET /metrics                  # uptime, request count, memory (token-protected)
+  └── express.static → public/      # static assets
 ```
 
-No build step required — the game is vanilla HTML5 Canvas + browser ES5 JavaScript. The Dockerfile copies the repo as-is and runs `node index.js`.
+No build step — static assets are served as-is from `public/`. The Dockerfile copies the repo and runs `node index.js`.
 
-## Docker
+## HTTP + HTTPS on a Single Port
 
-```bash
-docker build -t brick-breaker .
-docker run --rm -p 3000:3000 brick-breaker
-```
+The office VM sits behind a corporate firewall that forwards one external port to the VM. Mobile browsers (HTTPS-first mode) and desktop browsers (plain HTTP) both arrive on that same port.
 
-## Deployment
+nginx uses the `stream` module with `ssl_preread on` to detect the protocol at the TCP layer before the HTTP request is read:
 
-Pushes to `main` trigger the GitHub Actions pipeline (`.github/workflows/deploy.yml`):
+- **TLS ClientHello detected** → routed to the HTTPS server block (TLS terminated with a self-signed cert)
+- **Plain HTTP** → routed to the HTTP server block
 
-1. **Build & Scan** — `npm ci`, `npm test`, Docker build, Trivy vulnerability scan
-2. **Push to ECR** — tags and pushes image to Amazon ECR
-3. **Deploy to ECS** — updates task definition, deploys to ECS service
-4. **Deploy to Office VM** — self-hosted runner pulls image, restarts container on port 3000
+Both blocks proxy upstream to Express. The self-signed cert is generated at deploy time by the CI pipeline using `openssl` — no manual certificate management required.
+
+## API Endpoints
+
+| Route | Description |
+|---|---|
+| `GET /health` | Liveness probe — returns `{"status":"healthy"}` |
+| `GET /ready` | Readiness probe |
+| `GET /version` | App name, version, Node environment |
+| `GET /metrics` | Uptime, request count, memory usage, load average |
+
+`/metrics` requires `Authorization: Bearer <token>` when `METRICS_TOKEN` is set.
+
+## CI/CD Pipeline
+
+Pushes to `main` trigger `.github/workflows/deploy.yml`:
+
+1. **Build & Scan** — `npm ci`, validate, lint, format check, `npm audit`, Docker build, Trivy CRITICAL scan
+2. **Push to ECR** — image tagged with commit SHA, pushed to Amazon ECR
+3. **Deploy to ECS** — new task definition registered, ECS service updated, waits for stability
+4. **Deploy to Office VM** — self-hosted runner pulls image from ECR, restarts app container and nginx
+
+Jobs 3 and 4 run in parallel after job 2.
+
+### Code Quality Gates (CI)
+
+Every push must pass before the Docker build runs:
+
+| Check | Tool |
+|---|---|
+| Export validation | `node -e` smoke test |
+| Lint | ESLint (flat config, env-aware globals) |
+| Formatting | Prettier |
+| Dependency audit | `npm audit --audit-level=high` |
+| Image scan | Trivy (CRITICAL CVEs fail the build) |
+
+Pre-commit hooks (Husky + lint-staged) run ESLint and Prettier on staged files locally before each commit.
 
 ### Required GitHub Secrets
 
 | Secret | Purpose |
 |---|---|
-| `AWS_ROLE_ARN` | IAM role for OIDC auth |
+| `AWS_ROLE_ARN` | IAM role for OIDC auth (no static keys) |
 | `AWS_REGION` | Target AWS region |
-| `ECR_REPOSITORY` | ECR repo name |
+| `ECR_REPOSITORY` | ECR repository name |
 | `ECS_CLUSTER` | ECS cluster name |
 | `ECS_SERVICE` | ECS service name |
 | `ECS_TASK_DEFINITION` | Task definition family name |
-| `ECS_CONTAINER_NAME` | Container name in task def |
-| `METRICS_TOKEN` | Optional bearer token for `/metrics` |
+| `ECS_CONTAINER_NAME` | Container name in the task definition |
+| `METRICS_TOKEN` | Bearer token for `/metrics` (optional) |
 
-### Render (optional)
+## Local Development
 
-`render.yaml` is included for one-click deploy on Render.com. Connect the GitHub repo, Render detects the config automatically.
+```bash
+npm install
+npm start        # starts Express on the default port
+npm test         # validates server exports load correctly
+npm run lint     # ESLint
+npm run format   # Prettier
+```
 
-### Environment Variables
+### Docker
+
+```bash
+docker build -t ecs-vm-demo .
+docker run --rm -p 3000:3000 ecs-vm-demo
+```
+
+## Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `3000` | HTTP port |
-| `APP_NAME` | `ecs-vm-demo` | App identifier in logs |
+| `PORT` | `3000` | HTTP listen port |
+| `APP_NAME` | `ecs-vm-demo` | Identifier used in logs |
 | `NODE_ENV` | `production` | Node environment |
 | `METRICS_TOKEN` | _(unset)_ | Protects `/metrics` when set |
